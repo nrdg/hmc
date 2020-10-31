@@ -2,9 +2,18 @@
 
 __all__ = ["index", "modules", "custom_doc_links", "git_url"]
 
-index = {}
+index = {"svd": "00_core.ipynb",
+         "ExponentialIsotropicModel": "00_core.ipynb",
+         "ExponentialIsotropicFit": "00_core.ipynb",
+         "SFM4HMC": "00_core.ipynb",
+         "BIG_BIAS": "00_core.ipynb",
+         "SMALL_BIAS": "00_core.ipynb",
+         "BIAS_STEP": "00_core.ipynb",
+         "prep_data": "00_core.ipynb",
+         "prep_sfm": "00_core.ipynb",
+         "hmc": "00_core.ipynb"}
 
-modules = []
+modules = ["core.py"]
 
 doc_url = "https://nrdg.github.io/hmc/"
 

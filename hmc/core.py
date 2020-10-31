@@ -310,7 +310,7 @@ def hmc(data, gtab, mask=None, b0_ref=0, affine=None):
 
     sff_all, iso_params = sfm_all.fit(data, frac=0.5, mask=mask, tol=10e-10, iso_params=None)
 
-    for loo in range(3): #range(moving_data.shape[-1]):
+    for loo in range(moving_data.shape[-1]):
         print(loo)
         loo_idxer = np.ones(moving_data.shape[-1]).astype(bool)
         loo_idxer[loo] = False
@@ -340,7 +340,7 @@ def hmc(data, gtab, mask=None, b0_ref=0, affine=None):
             moving_affine=affine,
             static_affine=affine,
             pipeline=[dpa.affine],
-            level_iters=[10])
+            level_iters=[2])
         t2 = time.time()
         print(t2 - t1)
         moved.append(resampled)

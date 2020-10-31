@@ -120,7 +120,7 @@ class SFM4HMC(SparseFascicleModel):
     We need to reimplement the fit, so that we can use the FRR cleverness
     under the hood
     """
-    def fit(self, data, frac=0.5, mask=None, tol=10e-10, iso_params=None):
+    def fit(self, data, alpha=0.1, mask=None, tol=10e-10, iso_params=None):
         """
         Fit the SparseFascicleModel object to data.
 
@@ -182,7 +182,6 @@ class SFM4HMC(SparseFascicleModel):
         if np.any(isbad):
             warnings.warn("Some eigenvalues are being treated as 0")
 
-        alpha=frac
         ols_coef[isbad, ...] = 0
         seltsq = selt**2
         sclg = seltsq / (seltsq + alpha)
@@ -310,7 +309,7 @@ def hmc(data, gtab, mask=None, b0_ref=0, affine=None):
 
     sff_all, iso_params = sfm_all.fit(data, frac=0.5, mask=mask, tol=10e-10, iso_params=None)
 
-    for loo in range(moving_data.shape[-1]):
+    for loo in range(3): #range(moving_data.shape[-1]):
         print(loo)
         loo_idxer = np.ones(moving_data.shape[-1]).astype(bool)
         loo_idxer[loo] = False
@@ -325,7 +324,7 @@ def hmc(data, gtab, mask=None, b0_ref=0, affine=None):
             isotropic=ExponentialIsotropicModel)
 
         t1 = time.time()
-        sff, _ = sfm.fit(in_data, mask=mask, frac=10e-10, iso_params=iso_params)
+        sff, _ = sfm.fit(in_data, mask=mask, alpha=10e-10, iso_params=iso_params)
         t2 = time.time()
         print(t2 - t1)
         out_data = moving_data[..., ~loo_idxer]
@@ -334,20 +333,24 @@ def hmc(data, gtab, mask=None, b0_ref=0, affine=None):
 
         out_pred = sff.predict(out_gtab, S0=ref_data[..., 0])
         t1 = time.time()
-        resampled, starting_affine = dpa.affine_registration(
+        resampled, out_affine = dpa.affine_registration(
             out_data[..., 0],
             out_pred,
             moving_affine=affine,
             static_affine=affine,
             pipeline=[dpa.affine],
-            level_iters=[2])
+            level_iters=[1000, 100, 1])
         t2 = time.time()
         print(t2 - t1)
         moved.append(resampled)
-        affines.append(starting_affine)
+        affines.append(out_affine)
         in_data[..., loo] = resampled
         # XXX Also rotate the b-vector here
-    return sff, in_gtab, in_data
+        new_out_gtab = dpg.reorient_bvecs(out_gtab, [out_affine])
+        moving_bvals[~loo_idxer] = new_out_gtab.bvals
+        moving_bvecs[~loo_idxer] = new_out_gtab.bvecs
+
+    return moved, affines
 
 # Reuse USV from a single SVD decomposition of X at the beginning of each
 # loop through all of the volumes. Should speed up the RR fit in every volume.

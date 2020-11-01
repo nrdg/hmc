@@ -15,7 +15,9 @@ import dipy.core.gradients as dpg
 import collections
 import nibabel as nib
 from sklearn.base import RegressorMixin
+from dipy.segment.mask import median_otsu
 import warnings
+
 
 # Cell
 from functools import partial
@@ -138,16 +140,17 @@ class SFM4HMC(SparseFascicleModel):
         -------
         SparseFascicleFit object
         """
-        if mask is None:
-            # Flatten it to 2D either way:
-            data_in_mask = np.reshape(data, (-1, data.shape[-1]))
-        else:
-            # Check for valid shape of the mask
-            if mask.shape != data.shape[:-1]:
-                raise ValueError("Mask is not the same shape as data.")
-            mask = np.array(mask, dtype=bool, copy=False)
-            data_in_mask = np.reshape(data[mask], (-1, data.shape[-1]))
+        # if mask is None:
+        #     # Flatten it to 2D either way:
+        #     data_in_mask = np.reshape(data, (-1, data.shape[-1]))
+        # else:
+        #     # Check for valid shape of the mask
+        #     if mask.shape != data.shape[:-1]:
+        #         raise ValueError("Mask is not the same shape as data.")
+        #     mask = np.array(mask, dtype=bool, copy=False)
+        #     data_in_mask = np.reshape(data[mask], (-1, data.shape[-1]))
 
+        data_in_mask = data[mask]
         # Fitting is done on the relative signal (S/S0):
         flat_S0 = np.mean(data_in_mask[..., self.gtab.b0s_mask], -1)
         if not flat_S0.size or not flat_S0.max():
@@ -175,8 +178,7 @@ class SFM4HMC(SparseFascicleModel):
         y[:, nan_targets] = 0
 
         ### FIT FRACRIDGE
-        X = self.design_matrix
-        uu, selt, v_t, ols_coef = _do_svd(X, y)
+        uu, selt, v_t, ols_coef = _do_svd(self.design_matrix, y)
         # Set solutions for small eigenvalues to 0 for all targets:
         isbad = selt < tol
         if np.any(isbad):
@@ -297,8 +299,8 @@ def hmc(data, gtab, mask=None, b0_ref=0, affine=None):
     moving_data = data[..., ~gtab.b0s_mask]
     moving_bvals = gtab.bvals[~gtab.b0s_mask]
     moving_bvecs = gtab.bvecs[~gtab.b0s_mask]
-    mask = np.ones(ref_data.shape[:3])
-    mask[np.where(ref_data[..., 0] == 0)] = 0
+    mask = np.ones(ref_data.shape[:3], dtype=bool)
+    mask[np.where(ref_data[..., 0] == 0)] = False
     moved = []
     affines = []
 
@@ -307,9 +309,9 @@ def hmc(data, gtab, mask=None, b0_ref=0, affine=None):
         gtab,
         isotropic=ExponentialIsotropicModel)
 
-    sff_all, iso_params = sfm_all.fit(data, frac=0.5, mask=mask, tol=10e-10, iso_params=None)
+    sff_all, iso_params = sfm_all.fit(data, alpha=10e-10, mask=mask, tol=10e-10, iso_params=None)
 
-    for loo in range(3): #range(moving_data.shape[-1]):
+    for loo in range(moving_data.shape[-1]):
         print(loo)
         loo_idxer = np.ones(moving_data.shape[-1]).astype(bool)
         loo_idxer[loo] = False
@@ -339,7 +341,7 @@ def hmc(data, gtab, mask=None, b0_ref=0, affine=None):
             moving_affine=affine,
             static_affine=affine,
             pipeline=[dpa.affine],
-            level_iters=[1000, 100, 1])
+            level_iters=[1000, 100, 10])
         t2 = time.time()
         print(t2 - t1)
         moved.append(resampled)
